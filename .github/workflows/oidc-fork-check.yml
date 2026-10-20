@@ -1,0 +1,36 @@
+name: oidc-fork-check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show context
+        run: |
+          echo "event_name=$GITHUB_EVENT_NAME"
+          echo "base_repo=$GITHUB_REPOSITORY"
+          echo "head_owner=${{ github.event.pull_request.head.repo.owner.login }}"
+          echo "base_owner=${{ github.event.pull_request.base.repo.owner.login }}"
+          echo "is_fork=${{ github.event.pull_request.head.repo.fork }}"
+
+      - name: Request OIDC token
+        run: |
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "OIDC_RESULT=REQUEST_URL_UNSET"
+            exit 0
+          fi
+          echo "OIDC_RESULT=REQUEST_URL_IS_SET"
+          CODE=$(curl -sS -o /tmp/oidc.json -w '%{http_code}' \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=oidc-fork-test")
+          echo "OIDC_HTTP_CODE=$CODE"
+          echo "---- response body ----"
+          cat /tmp/oidc.json
+          echo
+          echo "---- end ----"
