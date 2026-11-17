@@ -1,0 +1,10 @@
+# 本地 token 文件，严禁提交
+token.txt
+*.token
+
+# Python
+__pycache__/
+*.py[cod]
+
+# 本地采集日志
+collect_run.log

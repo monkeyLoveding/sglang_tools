@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SGLang NPU Nightly 看板</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>SGLang NPU Nightly 看板</h1>
+      <span class="sub">sgl-project/sglang · nightly-test-npu.yml · 定时触发（schedule）</span>
+    </div>
+    <div class="meta" id="metaInfo">加载中…</div>
+  </header>
+
+  <main>
+    <section class="filters card">
+      <div class="filter-row">
+        <label>起始日期 <input type="date" id="fromDate" /></label>
+        <label>结束日期 <input type="date" id="toDate" /></label>
+        <div class="presets">
+          <button data-days="7">近7天</button>
+          <button data-days="14">近14天</button>
+          <button data-days="30">近30天</button>
+          <button data-days="90">近90天</button>
+        </div>
+        <button id="refreshBtn" class="ghost">刷新数据</button>
+      </div>
+      <div class="filter-row">
+        <label class="grow">Job 分组（可多选，与模型互斥）
+          <select id="jobSelect" multiple size="4"></select>
+        </label>
+        <label class="grow">模型（可多选，与 Job 互斥）
+          <select id="modelSelect" multiple size="4"></select>
+        </label>
+        <label class="grow">用例检索 <input type="search" id="caseSearch" placeholder="按文件名 / 路径过滤，例如 qwen3" /></label>
+      </div>
+      <div class="filter-row">
+        <label class="chk"><input type="checkbox" id="hideSkipped" checked /> 隐藏 skipped / cancelled 的 job</label>
+        <button id="clearFilters" class="ghost">清除 Job / 模型 筛选</button>
+        <span class="hint">提示：在列表中点击某一行可查看该用例/分组的明细；再次单击已选中的筛选项即可取消。</span>
+      </div>
+    </section>
+
+    <section class="cards" id="summaryCards"></section>
+
+    <section class="charts">
+      <div class="card chart-card">
+        <h2>每日用例通过 / 失败数</h2>
+        <canvas id="caseChart"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h2>每日 Job 平均排队时长</h2>
+        <canvas id="queueChart"></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="tabs">
+        <button class="tab active" data-tab="job">按 Job 汇聚</button>
+        <button class="tab" data-tab="model">按模型汇聚</button>
+        <button class="tab" data-tab="case">按用例文件</button>
+        <div class="sort-ctl">
+          <label>排序字段 <select id="sortSelect"></select></label>
+          <button id="sortDirBtn" class="ghost" title="切换升序 / 降序">降序 ▼</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="aggTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager" id="pager"></div>
+    </section>
+
+    <section class="card" id="detailCard" hidden>
+      <div class="detail-head">
+        <h2 id="detailTitle">明细</h2>
+        <button id="detailClose" class="ghost">关闭</button>
+      </div>
+      <div class="detail-stats" id="detailStats"></div>
+      <div class="chart-card">
+        <canvas id="detailChart"></canvas>
+      </div>
+      <div class="table-wrap">
+        <table id="detailTable">
+          <thead>
+            <tr><th>日期</th><th>Run</th><th>结果</th><th>时长</th><th>所属 Job</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    数据源：GitHub Actions API + job 日志中的 <code>TIMINGS</code> 块 · 每日自动采集
+  </footer>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

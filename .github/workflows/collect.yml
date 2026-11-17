@@ -1,0 +1,57 @@
+name: collect-nightly-npu-data
+
+# Collects sgl-project/sglang `nightly-test-npu.yml` (schedule-triggered) run
+# data into `data/*.json`, which the GitHub Pages dashboard reads.
+on:
+  schedule:
+    # The nightly run fires at 16:00 UTC (00:00 Beijing) and finishes ~06:30
+    # Beijing. Collect at 10:30 Beijing (02:30 UTC) to have the previous night
+    # fully settled.
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Lookback window in days (use a larger value to backfill).'
+        required: false
+        default: '30'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-nightly-npu-data
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Collect data
+        env:
+          # A PAT is required: job logs cannot be downloaded with GITHUB_TOKEN
+          # (they are served from a different repository) and it raises the API
+          # rate limit to 5000 requests/hour. Falls back to GITHUB_TOKEN so the
+          # job still records job-level data when the PAT is absent.
+          GH_API_TOKEN: ${{ secrets.GH_API_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          python collector/collect.py --days "${{ github.event.inputs.days || '30' }}"
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "data: update nightly-test-npu metrics"
+            git push
+          fi

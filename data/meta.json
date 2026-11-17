@@ -1,0 +1,1 @@
+{"updated_at":"2026-11-17T04:16:41.214344+00:00","repo":"sgl-project/sglang","workflow":"nightly-test-npu.yml","window_days":30,"generated_by":"collector/collect.py","counts":{"runs":30,"jobs":685,"cases":1474},"months":["2026-10","2026-11"],"date_range":{"from":"2026-10-19","to":"2026-11-17"}}
