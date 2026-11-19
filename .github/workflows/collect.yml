@@ -4,10 +4,11 @@ name: collect-nightly-npu-data
 # data into `data/*.json`, which the GitHub Pages dashboard reads.
 on:
   schedule:
-    # The nightly run fires at 16:00 UTC (00:00 Beijing) and finishes ~06:30
-    # Beijing. Collect at 10:30 Beijing (02:30 UTC) to have the previous night
-    # fully settled.
-    - cron: '30 2 * * *'
+    # The upstream nightly fires at 16:00 UTC (00:00 Beijing) and finishes a few
+    # hours later. GitHub's `schedule` is best-effort: this daily cron has been
+    # observed firing ~8h late, so run every 3 hours instead. The collector is
+    # idempotent and exits without committing when the data is unchanged.
+    - cron: '30 */3 * * *'
   workflow_dispatch:
     inputs:
       days:
