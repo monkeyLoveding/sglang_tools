@@ -9,6 +9,13 @@
 
 const PAGE_SIZE = 50;
 
+/* 手动采集：调用 GitHub Actions 的 workflow_dispatch 接口触发采集工作流。
+ * 令牌只保存在本浏览器的 localStorage，不会提交到仓库。 */
+const GH_API = 'https://api.github.com';
+const GH_REPO = 'monkeyLoveding/sglang_tools';
+const GH_COLLECT_WORKFLOW = 'collect.yml';
+const GH_TOKEN_KEY = `gh_token_${GH_REPO}`;
+
 const state = {
   meta: null,
   runs: [],
@@ -635,6 +642,105 @@ function applyPreset(days) {
   refresh();
 }
 
+/* ---------------------------- 手动采集 ---------------------------- */
+function ghHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function readToken() {
+  return localStorage.getItem(GH_TOKEN_KEY) || '';
+}
+
+function askToken() {
+  const v = window.prompt(
+    '请输入 GitHub 个人访问令牌（fine-grained，需对本仓库有 Actions: Read and write 权限）。\n\n' +
+    '令牌只保存在本浏览器的 localStorage，不会提交到仓库。'
+  );
+  if (v === null) return '';
+  const t = v.trim();
+  if (t) localStorage.setItem(GH_TOKEN_KEY, t);
+  return t || readToken();
+}
+
+function renderTokenState() {
+  document.getElementById('collectStatus').innerHTML = readToken()
+    ? '已保存令牌 · <a href="#" id="tokenReset">重置</a>'
+    : '未保存令牌（点击「手动采集」后会提示输入）';
+}
+
+/* 等待刚触发的采集运行结束。 */
+async function waitForCollectRun(token) {
+  const el = document.getElementById('collectStatus');
+  for (let i = 0; i < 60; i++) {
+    await sleep(5000);
+    const res = await fetch(
+      `${GH_API}/repos/${GH_REPO}/actions/workflows/${GH_COLLECT_WORKFLOW}/runs?event=workflow_dispatch&per_page=1`,
+      { headers: ghHeaders(token), cache: 'no-store' }
+    );
+    if (!res.ok) { el.textContent = `查询运行状态失败：HTTP ${res.status}`; return false; }
+    const run = ((await res.json()).workflow_runs || [])[0];
+    if (!run) { el.textContent = '等待采集运行创建…'; continue; }
+    if (run.status !== 'completed') { el.textContent = `采集运行中…（${run.status}）`; continue; }
+    el.innerHTML = `采集完成：${run.conclusion} · <a href="${run.html_url}" target="_blank" rel="noopener">查看运行</a>。等待数据发布…`;
+    return true;
+  }
+  el.textContent = '等待采集运行超时，请稍后手动点「刷新数据」。';
+  return false;
+}
+
+/* workflow 提交数据后 Pages 需要重新构建，轮询到 updated_at 变化再刷新。 */
+async function waitForDataPublish(before) {
+  const el = document.getElementById('collectStatus');
+  for (let i = 0; i < 20; i++) {
+    await sleep(15000);
+    jobCache.clear();
+    caseCache.clear();
+    await refresh();
+    if (state.meta && state.meta.updated_at !== before) {
+      el.textContent = `数据已更新（更新于 ${new Date(state.meta.updated_at).toLocaleString('zh-CN')}）。`;
+      return;
+    }
+  }
+  el.textContent = '采集已完成，但线上数据还没刷新，请稍后点「刷新数据」。';
+}
+
+async function triggerCollect() {
+  const btn = document.getElementById('collectBtn');
+  const el = document.getElementById('collectStatus');
+  const token = readToken() || askToken();
+  if (!token) { el.textContent = '未输入令牌，已取消。'; return; }
+  const before = state.meta && state.meta.updated_at;
+  btn.disabled = true;
+  el.textContent = '正在触发采集…';
+  try {
+    const res = await fetch(`${GH_API}/repos/${GH_REPO}/actions/workflows/${GH_COLLECT_WORKFLOW}/dispatches`, {
+      method: 'POST',
+      headers: { ...ghHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: 'main', inputs: { days: '30' } }),
+    });
+    if (res.status === 204) {
+      if (await waitForCollectRun(token)) await waitForDataPublish(before);
+    } else if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem(GH_TOKEN_KEY);
+      el.textContent = `触发失败：令牌无效或权限不足（需 Actions: Read and write），已清除保存的令牌，请重试。`;
+    } else {
+      el.textContent = `触发失败：HTTP ${res.status}`;
+    }
+  } catch (e) {
+    el.textContent = `触发失败：${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function init() {
   await loadRunsAndMeta();
   const meta = state.meta || {};
@@ -654,6 +760,15 @@ async function init() {
   document.getElementById('fromDate').onchange = (e) => { state.from = e.target.value; state.page = 1; refresh(); };
   document.getElementById('toDate').onchange = (e) => { state.to = e.target.value; state.page = 1; refresh(); };
   document.getElementById('refreshBtn').onclick = () => { jobCache.clear(); caseCache.clear(); refresh(); };
+  document.getElementById('collectBtn').onclick = triggerCollect;
+  document.getElementById('collectStatus').onclick = (e) => {
+    if (e.target && e.target.id === 'tokenReset') {
+      e.preventDefault();
+      localStorage.removeItem(GH_TOKEN_KEY);
+      renderTokenState();
+    }
+  };
+  renderTokenState();
   document.getElementById('jobSelect').onchange = () => { clearSelect('modelSelect'); readSelectors(); state.page = 1; renderCards(); renderCharts(); renderTable(); };
   document.getElementById('modelSelect').onchange = () => { clearSelect('jobSelect'); readSelectors(); state.page = 1; renderCards(); renderCharts(); renderTable(); };
   enableToggleDeselect(document.getElementById('jobSelect'));

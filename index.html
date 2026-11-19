@@ -28,6 +28,8 @@
           <button data-days="90">近90天</button>
         </div>
         <button id="refreshBtn" class="ghost">刷新数据</button>
+        <button id="collectBtn" class="ghost" title="触发 GitHub Actions 采集。需要先在浏览器里保存一个有 Actions: Read and write 权限的令牌。">手动采集</button>
+        <span id="collectStatus" class="hint"></span>
       </div>
       <div class="filter-row">
         <label class="grow">Job 分组（可多选，与模型互斥）
